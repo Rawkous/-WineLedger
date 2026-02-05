@@ -1,22 +1,26 @@
 Architecture diagram (text version for docs)
+
                  ┌──────────────────────────────┐
                  │   Supply Chain Simulator     │
                  │ (vineyard → bottle → retail) │
                  └───────────────┬──────────────┘
                                  │ events
                                  ▼
+                                 
                  ┌──────────────────────────────┐
                  │       Blockchain Engine      │
                  │ (blocks, hashes, validation) │
                  └───────────────┬──────────────┘
                                  │ blocks
                                  ▼
+                                 
                  ┌──────────────────────────────┐
                  │    Visual Mapping Layer      │
                  │ (event → visual parameters)  │
                  └───────────────┬──────────────┘
                                  │ JSON over WebSocket
                                  ▼
+                                 
         ┌────────────────────────────────────────────────┐
         │                  Frontend (Web)                │
         │  ┌──────────────────────────────────────────┐  │
