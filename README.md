@@ -1,0 +1,267 @@
+
+# -WineLedgerthe tech stack
+Backend (Python, Ubuntu):
+- Language: Python 3.10+
+- Framework: FastAPI
+- Server: Uvicorn
+- Data: SQLite (or JSON files for v1)
+- Libs:
+- pandas, numpy (simulation)
+- hashlib, dataclasses (blockchain)
+- websockets or FastAPI’s WebSocket support
+Frontend (Web‑based):
+- Language: JavaScript (ES6+)
+- Bundler/dev server: Vite (simple, fast)
+- Generative art: p5.js (2D, approachable) or Three.js (3D/WebGL)
+- UI: HTML/CSS (optionally Tailwind or vanilla)
+Dev/Infra:
+- Git + GitHub
+- Ubuntu (local dev)
+- Node.js + npm
+- PyCharm (backend), WebStorm or VS Code (frontend)
+
+2. Project folder structure
+wineledger/
+│
+├── backend/
+│   ├── app/
+│   │   ├── main.py              # FastAPI entrypoint
+│   │   ├── models.py            # Block, Event dataclasses
+│   │   ├── blockchain.py        # Blockchain logic
+│   │   ├── simulator.py         # Supply chain simulator
+│   │   ├── mapping.py           # Event → visual params
+│   │   ├── schemas.py           # Pydantic models
+│   │   └── websocket.py         # WebSocket endpoints
+│   ├── tests/
+│   │   └── test_blockchain.py
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.js              # entry
+│   │   ├── renderer.js          # p5.js / Three.js visuals
+│   │   ├── websocketClient.js   # connects to backend
+│   │   ├── ui.js                # ledger/timeline UI
+│   │   └── styles.css
+│   └── package.json
+│
+├── docs/
+│   ├── architecture-diagram.md
+│   └── notes.md
+│
+├── .gitignore
+└── README.md
+
+
+
+3. README introduction (draft)
+# WineLedger
+
+**WineLedger** is a blockchain‑inspired, web‑based digital twin of the wine supply chain that transforms every step of a bottle’s journey—from vineyard to glass—into living generative art.
+
+The system simulates a realistic wine supply chain, records each event (harvest, fermentation, barrel aging, bottling, transport, retail) on a lightweight blockchain ledger, and streams those events to a browser‑based visual engine. Each event becomes a visual gesture: a burst of particles, a shift in color, a change in motion. The result is an interactive experience where supply chain transparency, sustainability, and “health” are not just numbers, but evolving visuals.
+
+Built at the intersection of **blockchain**, **supply chain modeling**, **creative coding**, and **wine country culture**, WineLedger is both an educational tool and an artistic exploration of how data can tell stories.
+
+
+You can expand later with Features / Architecture / Getting Started.
+
+4. Architecture diagram (text version for docs)
+                 ┌──────────────────────────────┐
+                 │   Supply Chain Simulator     │
+                 │ (vineyard → bottle → retail) │
+                 └───────────────┬──────────────┘
+                                 │ events
+                                 ▼
+                 ┌──────────────────────────────┐
+                 │       Blockchain Engine      │
+                 │ (blocks, hashes, validation) │
+                 └───────────────┬──────────────┘
+                                 │ blocks
+                                 ▼
+                 ┌──────────────────────────────┐
+                 │    Visual Mapping Layer      │
+                 │ (event → visual parameters)  │
+                 └───────────────┬──────────────┘
+                                 │ JSON over WebSocket
+                                 ▼
+        ┌────────────────────────────────────────────────┐
+        │                  Frontend (Web)                │
+        │  ┌──────────────────────────────────────────┐  │
+        │  │        Generative Art Renderer           │  │
+        │  │   (p5.js / Three.js, 60 FPS visuals)     │  │
+        │  └──────────────────────────────────────────┘  │
+        │  ┌──────────────────────────────────────────┐  │
+        │  │        UI Layer (Ledger + Timeline)      │  │
+        │  └──────────────────────────────────────────┘  │
+        └────────────────────────────────────────────────┘
+
+
+
+5. Phase 1 backend starter code (simulator + blockchain skeleton)
+backend/app/models.py
+from dataclasses import dataclass
+from typing import Dict, Any
+from datetime import datetime
+
+@dataclass
+class SupplyChainEvent:
+    event_id: str
+    event_type: str
+    timestamp: datetime
+    location: Dict[str, float]
+    metadata: Dict[str, Any]
+
+@dataclass
+class Block:
+    index: int
+    timestamp: datetime
+    event: SupplyChainEvent
+    previous_hash: str
+    hash: str
+    nonce: int = 0
+
+
+backend/app/blockchain.py
+import hashlib
+from datetime import datetime
+from typing import List
+from .models import Block, SupplyChainEvent
+
+class Blockchain:
+    def __init__(self):
+        self.chain: List[Block] = []
+        self._create_genesis_block()
+
+    def _create_genesis_block(self):
+        genesis_event = SupplyChainEvent(
+            event_id="GENESIS",
+            event_type="GENESIS",
+            timestamp=datetime.utcnow(),
+            location={"lat": 0.0, "lon": 0.0},
+            metadata={}
+        )
+        genesis_block = Block(
+            index=0,
+            timestamp=datetime.utcnow(),
+            event=genesis_event,
+            previous_hash="0",
+            hash="",
+        )
+        genesis_block.hash = self._calculate_hash(genesis_block)
+        self.chain.append(genesis_block)
+
+    def _calculate_hash(self, block: Block) -> str:
+        block_string = f"{block.index}{block.timestamp}{block.event.event_id}{block.previous_hash}{block.nonce}"
+        return hashlib.sha256(block_string.encode("utf-8")).hexdigest()
+
+    def add_block(self, event: SupplyChainEvent) -> Block:
+        previous_block = self.chain[-1]
+        new_block = Block(
+            index=previous_block.index + 1,
+            timestamp=datetime.utcnow(),
+            event=event,
+            previous_hash=previous_block.hash,
+            hash="",
+        )
+        new_block.hash = self._calculate_hash(new_block)
+        self.chain.append(new_block)
+        return new_block
+
+    def is_valid(self) -> bool:
+        for i in range(1, len(self.chain)):
+            curr = self.chain[i]
+            prev = self.chain[i - 1]
+            if curr.previous_hash != prev.hash:
+                return False
+            if self._calculate_hash(curr) != curr.hash:
+                return False
+        return True
+
+
+backend/app/simulator.py
+import uuid
+import random
+from datetime import datetime, timedelta
+from typing import List
+from .models import SupplyChainEvent
+
+EVENT_SEQUENCE = [
+    "HARVEST",
+    "FERMENTATION",
+    "BARREL_AGING",
+    "BOTTLING",
+    "TRANSPORT",
+    "RETAIL",
+]
+
+BASE_LOCATION = {"lat": 38.2975, "lon": -122.2869}  # Napa-ish
+
+def simulate_supply_chain(start_time: datetime | None = None) -> List[SupplyChainEvent]:
+    if start_time is None:
+        start_time = datetime.utcnow()
+
+    events: List[SupplyChainEvent] = []
+    current_time = start_time
+
+    for event_type in EVENT_SEQUENCE:
+        event_id = str(uuid.uuid4())
+        # simple time progression
+        delta_hours = random.randint(4, 72)
+        current_time += timedelta(hours=delta_hours)
+
+        location = {
+            "lat": BASE_LOCATION["lat"] + random.uniform(-0.1, 0.1),
+            "lon": BASE_LOCATION["lon"] + random.uniform(-0.1, 0.1),
+        }
+
+        metadata = {
+            "temperature": round(random.uniform(8.0, 22.0), 1),
+            "batch_id": "BATCH-2026-001",
+            "notes": f"{event_type} event",
+        }
+
+        event = SupplyChainEvent(
+            event_id=event_id,
+            event_type=event_type,
+            timestamp=current_time,
+            location=location,
+            metadata=metadata,
+        )
+        events.append(event)
+
+    return events
+
+
+backend/app/main.py
+from fastapi import FastAPI
+from .blockchain import Blockchain
+from .simulator import simulate_supply_chain
+
+app = FastAPI()
+blockchain = Blockchain()
+
+@app.get("/simulate-once")
+def simulate_once():
+    events = simulate_supply_chain()
+    blocks = []
+    for event in events:
+        block = blockchain.add_block(event)
+        blocks.append({
+            "index": block.index,
+            "timestamp": block.timestamp.isoformat(),
+            "event_type": block.event.event_type,
+            "previous_hash": block.previous_hash,
+            "hash": block.hash,
+        })
+    return {
+        "valid_chain": blockchain.is_valid(),
+        "blocks": blocks,
+    }
+
+
+That endpoint alone already gives you:
+- a simulated wine supply chain
+- a blockchain ledger built from it
+- a JSON response you can later feed into the frontend
